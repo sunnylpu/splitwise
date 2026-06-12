@@ -1,7 +1,4 @@
 rules_version = '2';
-service cloudfastpath {
-  // Let's name it cloud.firestore to comply with standard firebase format
-}
 service cloud.firestore {
   match /databases/{database}/documents {
 
