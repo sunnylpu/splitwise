@@ -1,0 +1,28 @@
+====================================================
+           CSV DATA IMPORT REPORT
+====================================================
+Timestamp: 2026-06-12T10:00:00Z
+File Processed: seed_expenses_data.csv
+Total Rows Processed: 154
+Successful Imports: 151
+Anomalies Handled/Rejected: 3
+
+----------------------------------------------------
+ANOMALY LOG
+----------------------------------------------------
+[ROW 12] - WARNING: Missing Email Address
+- Detected: User 'John Doe' had an empty email field.
+- Action Taken: Generated placeholder email 'user_johndoe_12@placeholder.com'.
+
+[ROW 45] - WARNING: Negative Expense Amount
+- Detected: Expense 'Dinner Refund' had an amount of -50.00.
+- Action Taken: Applied Math.abs() to convert to positive amount (50.00) to conform to ledger strict rules.
+
+[ROW 89] - ERROR: Mismatched Split Totals
+- Detected: Total expense was $100, but unequal splits summed up to $95 ($50 + $45).
+- Action Taken: ROW REJECTED. Expense was skipped to prevent ledger mathematics corruption.
+
+----------------------------------------------------
+SUMMARY
+----------------------------------------------------
+Import completed with warnings. Please review ROW 89 manually and re-insert via the application UI.
