@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile synchronized with Firebase Auth.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "createdAt"]
+    },
+    "Group": {
+      "title": "Group",
+      "description": "A Splitwise Group comprising users sharing expenses.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "createdById": { "type": "string" },
+        "memberIds": { "type": "array" },
+        "memberEmails": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "createdById", "memberIds", "memberEmails", "createdAt"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "An expense item created inside a group, representing a bill paid by a member and split among others.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "description": { "type": "string" },
+        "amount": { "type": "number" },
+        "paidById": { "type": "string" },
+        "splitType": { "type": "string" },
+        "splits": { "type": "object" },
+        "calculatedAmounts": { "type": "object" },
+        "createdById": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["groupId", "description", "amount", "paidById", "splitType", "splits", "calculatedAmounts", "createdById", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A chat message posted inside an expense thread for clarification.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderPhoto": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "senderName", "text", "createdAt"]
+    },
+    "Settlement": {
+      "title": "Settlement",
+      "description": "A direct payment record between two group members to settle up debts.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "payerId": { "type": "string" },
+        "payeeId": { "type": "string" },
+        "amount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["groupId", "payerId", "payeeId", "amount", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profiles indexed by UID."
+    },
+    "/groups/{groupId}": {
+      "schema": "Group",
+      "description": "Root groups list."
+    },
+    "/groups/{groupId}/expenses/{expenseId}": {
+      "schema": "Expense",
+      "description": "Expenses belonging to a specific group."
+    },
+    "/groups/{groupId}/expenses/{expenseId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Real-time context messages inside an expense."
+    },
+    "/groups/{groupId}/settlements/{settlementId}": {
+      "schema": "Settlement",
+      "description": "Settlements created inside a group."
+    }
+  }
+}

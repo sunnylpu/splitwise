@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloudfastpath {
+  // Let's name it cloud.firestore to comply with standard firebase format
+}
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // UTILITY HELPERS
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // USER PROFILE RULES
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(uid) && incoming().uid == uid;
+    }
+
+    // GROUP RULES
+    match /groups/{groupId} {
+      allow read: if isSignedIn() && (request.auth.uid in resource.data.memberIds);
+      allow create: if isSignedIn() 
+                    && incoming().createdById == request.auth.uid 
+                    && (request.auth.uid in incoming().memberIds)
+                    && incoming().memberIds.size() <= 50;
+      allow update: if isSignedIn() 
+                    && (request.auth.uid in resource.data.memberIds)
+                    && incoming().memberIds.size() <= 50;
+      allow delete: if isSignedIn() 
+                    && resource.data.createdById == request.auth.uid;
+
+      // SUB-RESOURCES NESTED UNDER GROUPS FOR MAX SECURITY
+      
+      // EXPENSES
+      match /expenses/{expenseId} {
+        allow read: if isSignedIn() && (request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds);
+        allow create: if isSignedIn() 
+                      && (request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds)
+                      && incoming().groupId == groupId
+                      && incoming().createdById == request.auth.uid;
+        allow update: if isSignedIn() 
+                      && (request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds)
+                      && incoming().groupId == groupId;
+        allow delete: if isSignedIn() 
+                      && (request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds);
+
+        // REAL-TIME CHATS WITHIN EXPENSES
+        match /messages/{messageId} {
+          allow read: if isSignedIn() && (request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds);
+          allow create: if isSignedIn() 
+                        && (request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds)
+                        && incoming().senderId == request.auth.uid;
+          allow update, delete: if false; // Messages are immutable for historical integrity
+        }
+      }
+
+      // SETTLEMENTS
+      match /settlements/{settlementId} {
+        allow read: if isSignedIn() && (request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds);
+        allow create: if isSignedIn() 
+                      && (request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds)
+                      && incoming().groupId == groupId
+                      && (incoming().payerId == request.auth.uid || incoming().payeeId == request.auth.uid);
+        allow update: if isSignedIn() 
+                      && (request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds)
+                      && incoming().groupId == groupId;
+        allow delete: if isSignedIn() 
+                      && (request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds);
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Splitwise Clone",
+  "description": "A simplified, highly polished clone of Splitwise for split bills, expense tracking, group balances, and real-time chatting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
