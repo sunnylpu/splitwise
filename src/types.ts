@@ -12,6 +12,8 @@ export interface Expense {
   id: string;
   groupId: string;
   description: string;
+  category?: string;
+  isRecurring?: boolean;
   amount: number;
   paidById: string; // The user who paid the bill
   splitType: SplitType;

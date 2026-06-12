@@ -1,16 +1,25 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppProvider, useApp } from "./context/AppContext";
 import { LoginScreen } from "./components/LoginScreen";
 import { EmailVerificationScreen } from "./components/EmailVerificationScreen";
 import { Dashboard } from "./components/Dashboard";
 import { GroupDetail } from "./components/GroupDetail";
 import { CreateGroupModal } from "./components/CreateGroupModal";
-import { Coins } from "lucide-react";
+import { Coins, Moon, Sun } from "lucide-react";
 
 function AppContent() {
   const { currentUser, loading } = useApp();
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [isDark]);
 
   // Global Loader
   if (loading) {
@@ -44,7 +53,16 @@ function AppContent() {
 
   // Primary Routing Navigation Setup
   return (
-    <div id="app-view-container" className="min-h-screen bg-slate-50">
+    <div id="app-view-container" className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+      <div className="absolute top-4 right-4 z-50">
+        <button
+          onClick={() => setIsDark(!isDark)}
+          className="p-2 rounded-full bg-white dark:bg-slate-800 shadow-md text-slate-800 dark:text-white cursor-pointer"
+        >
+          {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+        </button>
+      </div>
+
       {selectedGroupId ? (
         <GroupDetail
           groupId={selectedGroupId}
