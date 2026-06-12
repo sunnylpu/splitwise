@@ -31,7 +31,8 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
-  X
+  X,
+  Receipt
 } from "lucide-react";
 
 interface GroupDetailProps {
@@ -39,7 +40,7 @@ interface GroupDetailProps {
   onBack: () => void;
 }
 
-type TabType = "expenses" | "debts" | "members";
+type TabType = "expenses" | "debts" | "members" | "activity";
 
 export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => {
   const { userProfile, users, groups } = useApp();
@@ -74,6 +75,38 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
   const [settleAmount, setSettleAmount] = useState("");
   const [settleError, setSettleError] = useState<string | null>(null);
   const [settleSubmitting, setSettleSubmitting] = useState(false);
+
+  const exportToCSV = () => {
+    if (!group) return;
+
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Type,Date,Description,Amount,Paid By,Paid To\n";
+
+    // Add Expenses
+    expenses.forEach((exp) => {
+      const date = exp.createdAt ? new Date(exp.createdAt.seconds * 1000).toLocaleDateString() : "Pending";
+      const payerName = users[exp.paidById]?.displayName || "Unknown";
+      // Escape commas in description
+      const desc = exp.description.replace(/,/g, " ");
+      csvContent += `Expense,${date},${desc},${exp.amount},${payerName},Group\n`;
+    });
+
+    // Add Settlements
+    settlements.forEach((set) => {
+      const date = set.createdAt ? new Date(set.createdAt.seconds * 1000).toLocaleDateString() : "Pending";
+      const payerName = users[set.payerId]?.displayName || "Unknown";
+      const payeeName = users[set.payeeId]?.displayName || "Unknown";
+      csvContent += `Settlement,${date},Settlement Payment,${set.amount},${payerName},${payeeName}\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `group_${group.name.replace(/\s+/g, '_')}_ledger.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Snapshot readers
   useEffect(() => {
@@ -381,8 +414,8 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
           </div>
 
           {/* Tab Navigation */}
-          <div className="flex gap-1.5 p-1 bg-white border border-slate-200 rounded-xl">
-            {(["expenses", "debts", "members"] as TabType[]).map((tab) => (
+          <div className="flex gap-1.5 p-1 bg-white border border-slate-200 rounded-xl flex-wrap">
+            {(["expenses", "debts", "members", "activity"] as TabType[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => {
@@ -390,15 +423,21 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
                   setInviteError(null);
                   setInviteSuccess(null);
                 }}
-                className={`flex-1 rounded-lg py-2.5 text-xs font-bold transition-all capitalize cursor-pointer ${
+                className={`flex-1 rounded-lg py-2.5 text-xs font-bold transition-all capitalize cursor-pointer min-w-[100px] ${
                   activeTab === tab
                     ? "bg-slate-900 text-white shadow-xs"
                     : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
                 }`}
               >
-                {tab === "expenses" ? "Expenses Ledger" : tab === "debts" ? "Balances & Settle" : "Group Members"}
+                {tab === "expenses" ? "Expenses Ledger" : tab === "debts" ? "Balances & Settle" : tab === "members" ? "Group Members" : "Activity Feed"}
               </button>
             ))}
+            <button
+              onClick={exportToCSV}
+              className="flex-1 rounded-lg py-2.5 text-xs font-bold transition-all text-slate-500 hover:bg-slate-50 hover:text-slate-800 border border-slate-200 cursor-pointer"
+            >
+              Export CSV
+            </button>
           </div>
 
           {/* TAB 1: Expenses Ledger List */}
@@ -444,7 +483,19 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
                               referrerPolicy="no-referrer"
                             />
                             <div>
-                              <h4 className="text-sm font-bold text-slate-800">{exp.description}</h4>
+                              <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                {exp.description}
+                                {exp.category && (
+                                  <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[10px] font-medium border border-slate-200">
+                                    {exp.category}
+                                  </span>
+                                )}
+                                {exp.isRecurring && (
+                                  <span className="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded text-[10px] font-medium border border-blue-200 flex items-center gap-1">
+                                    🔄 Recurring
+                                  </span>
+                                )}
+                              </h4>
                               <div className="flex flex-wrap items-center gap-1.5 mt-1">
                                 <span className="text-[10px] text-slate-400 font-semibold">
                                   Paid by{" "}
@@ -611,6 +662,83 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
             </div>
           )}
 
+          {/* TAB 4: Activity Feed */}
+          {activeTab === "activity" && (
+            <div className="space-y-4">
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-12 bg-white rounded-3xl border border-slate-100">
+                  <div className="h-8 w-8 animate-spin rounded-full border-3 border-emerald-500 border-t-transparent" />
+                  <span className="text-xs text-slate-400 font-medium mt-2">Loading activity feed...</span>
+                </div>
+              ) : expenses.length === 0 && settlements.length === 0 ? (
+                <div className="flex flex-col items-center justify-center text-center p-10 bg-white rounded-3xl border border-dashed border-slate-200">
+                  <div className="rounded-full bg-slate-100 p-4 text-slate-400 mb-3">
+                    <FileText className="h-8 w-8" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-700">No activity yet</h4>
+                  <p className="text-xs text-slate-400 max-w-sm mt-1">
+                    Transactions and settlements will appear here chronologically.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {[...expenses.map(e => ({...e, type: 'expense' as const})), ...settlements.map(s => ({...s, type: 'settlement' as const}))]
+                    .sort((a, b) => {
+                      const t1 = a.createdAt?.seconds || 0;
+                      const t2 = b.createdAt?.seconds || 0;
+                      return t2 - t1; // Descending
+                    })
+                    .map((item) => {
+                      if (item.type === 'expense') {
+                        const exp = item as Expense & { type: 'expense' };
+                        const payerProfile = users[exp.paidById];
+                        return (
+                          <div key={`act-exp-${exp.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs flex items-center gap-4">
+                            <div className="h-10 w-10 shrink-0 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
+                              <Receipt className="h-5 w-5" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-bold text-slate-800">{exp.description}</h4>
+                                <span className="text-sm font-extrabold text-slate-900">${exp.amount.toFixed(2)}</span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                <span className="font-semibold text-slate-700">{payerProfile?.displayName || "Someone"}</span> added an expense
+                                <span className="text-slate-300 mx-1.5">•</span>
+                                {exp.createdAt ? new Date(exp.createdAt.seconds * 1000).toLocaleDateString() : "Pending"}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      } else {
+                        const set = item as Settlement & { type: 'settlement' };
+                        const payer = users[set.payerId];
+                        const payee = users[set.payeeId];
+                        return (
+                          <div key={`act-set-${set.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs flex items-center gap-4">
+                            <div className="h-10 w-10 shrink-0 rounded-full bg-violet-50 text-violet-600 flex items-center justify-center border border-violet-100">
+                              <Coins className="h-5 w-5" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-bold text-slate-800">Settled up</h4>
+                                <span className="text-sm font-extrabold text-violet-600">${set.amount.toFixed(2)}</span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                <span className="font-semibold text-slate-700">{payer?.displayName || "Someone"}</span> paid <span className="font-semibold text-slate-700">{payee?.displayName || "Someone"}</span>
+                                <span className="text-slate-300 mx-1.5">•</span>
+                                {set.createdAt ? new Date(set.createdAt.seconds * 1000).toLocaleDateString() : "Pending"}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      }
+                    })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* TAB 2: Balances & Simplified Debts */}
           {activeTab === "debts" && (
             <div className="space-y-6">
@@ -701,12 +829,30 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
                             </span>
                           </div>
 
-                          <button
-                            onClick={() => handleOpenSettle(debt.from, debt.to, debt.amount)}
-                            className="rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-[10px] font-bold text-white transition-colors cursor-pointer"
-                          >
-                            Record cash settle
-                          </button>
+                          <div className="flex items-center gap-2">
+                            {isImOwing && (
+                              <a
+                                href={`venmo://pay?charge=pay&txn=pay&amount=${debt.amount.toFixed(2)}&note=Splitwise%20Settlement`}
+                                className="rounded-lg bg-[#008CFF] hover:bg-[#007BE0] px-3 py-1.5 text-[10px] font-bold text-white transition-colors cursor-pointer"
+                              >
+                                Venmo
+                              </a>
+                            )}
+                            {isImReceiving && fromUser?.email && (
+                              <a
+                                href={`mailto:${fromUser.email}?subject=Reminder:%20Settle%20up%20on%20Splitwise&body=Hi%20${fromUser.displayName},%0A%0AJust%20a%20friendly%20reminder%20that%20you%20owe%20$${debt.amount.toFixed(2)}%20in%20the%20${encodeURIComponent(group.name)}%20group.%0A%0AThanks!`}
+                                className="rounded-lg bg-amber-500 hover:bg-amber-600 px-3 py-1.5 text-[10px] font-bold text-white transition-colors cursor-pointer"
+                              >
+                                Remind
+                              </a>
+                            )}
+                            <button
+                              onClick={() => handleOpenSettle(debt.from, debt.to, debt.amount)}
+                              className="rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-[10px] font-bold text-white transition-colors cursor-pointer"
+                            >
+                              Record cash settle
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
