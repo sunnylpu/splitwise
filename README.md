@@ -1,12 +1,10 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+<h1>Splitwise Clone</h1>
 </div>
 
-# Run and deploy your AI Studio app
+# Run and deploy your Splitwise app
 
 This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/cfcae124-808c-4015-a26a-91b5ee629a66
 
 ## Run Locally
 
