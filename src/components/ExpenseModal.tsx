@@ -28,6 +28,9 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ group, isOpen, onClo
   const [participants, setParticipants] = useState<string[]>([]); // active who partake in split (for equal split checkboxes)
   const [memberSplits, setMemberSplits] = useState<Record<string, number>>({}); // holds raw weights/percents/amounts per UID
 
+  const [currency, setCurrency] = useState<"USD" | "EUR" | "INR">("USD");
+  const currencyRates = { USD: 1, EUR: 0.92, INR: 83.5 };
+
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -111,7 +114,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ group, isOpen, onClo
             role: "user",
             parts: [
               {
-                text: "Analyze this receipt. Extract the total amount as a number, and provide a short description (like the restaurant or store name). Also suggest a category from this list: Food, Travel, Utilities, Shopping, Other. Return ONLY a JSON object in this exact format, with no markdown formatting: {\"amount\": 0.00, \"description\": \"Store Name\", \"category\": \"Category\"}"
+                text: "Analyze this receipt. Extract the purchased items as a comma-separated list, extract the total amount as a number, and provide a short description of the venue. Also suggest a category from this list: Food, Travel, Utilities, Shopping, Other. Return ONLY a JSON object in this exact format, with no markdown formatting: {\"amount\": 0.00, \"description\": \"Venue Name (Items: item1, item2)\", \"category\": \"Category\"}"
               },
               {
                 inlineData: {
@@ -215,15 +218,25 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ group, isOpen, onClo
     setIsSubmitting(true);
 
     try {
-      // 1. Resolve participants depending on split mode
+      // 1. Convert to base USD if a foreign currency was selected
+      const baseAmount = totalAmount / currencyRates[currency];
+
+      const baseMemberSplits = { ...memberSplits };
+      if (splitType === "unequal") {
+        for (const [k, v] of Object.entries(baseMemberSplits)) {
+          baseMemberSplits[k] = (v as number) / currencyRates[currency];
+        }
+      }
+
+      // 2. Resolve participants depending on split mode
       const activeParts = splitType === "equal" ? participants : group.memberIds;
 
-      // 2. Perform the split calculation
+      // 3. Perform the split calculation in BASE USD
       const calculatedAmounts = calculateSplits(
-        totalAmount,
+        baseAmount,
         splitType,
         activeParts,
-        memberSplits
+        baseMemberSplits
       );
 
       // Verify no NaN values
@@ -233,16 +246,16 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ group, isOpen, onClo
         }
       }
 
-      // 3. Save inside group expenses
+      // 4. Save inside group expenses (as Base USD)
       const expenseData = {
         groupId: group.id,
         description: description.trim() || "Unspecified bill",
         category,
         isRecurring,
-        amount: totalAmount,
+        amount: baseAmount,
         paidById: paidById,
         splitType: splitType,
-        splits: memberSplits,
+        splits: baseMemberSplits,
         calculatedAmounts: calculatedAmounts,
         createdById: userProfile.uid,
         createdAt: serverTimestamp(),
@@ -355,7 +368,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ group, isOpen, onClo
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Total Amount Paid ($)
+                  Total Amount Paid
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-500 hover:text-slate-800">
                   <input
@@ -367,15 +380,26 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ group, isOpen, onClo
                   Monthly recurring
                 </label>
               </div>
-              <input
-                type="number"
-                step="0.01"
-                required
-                placeholder="0.00"
-                value={amountInput}
-                onChange={(e) => setAmountInput(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:outline-none"
-              />
+              <div className="flex gap-2">
+                <select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value as "USD" | "EUR" | "INR")}
+                  className="rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-bold bg-slate-50 text-slate-600 focus:outline-none cursor-pointer"
+                >
+                  <option value="USD">USD ($)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="INR">INR (₹)</option>
+                </select>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  placeholder="0.00"
+                  value={amountInput}
+                  onChange={(e) => setAmountInput(e.target.value)}
+                  className="flex-1 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
             </div>
           </div>
 

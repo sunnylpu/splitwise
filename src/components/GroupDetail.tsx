@@ -68,6 +68,14 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
   // Active chat expense state
   const [activeChatExpense, setActiveChatExpense] = useState<Expense | null>(null);
 
+  // Currency State
+  const [currency, setCurrency] = useState<"USD" | "EUR" | "INR">("USD");
+  const currencyRates = { USD: 1, EUR: 0.92, INR: 83.5 };
+  const currencySymbols = { USD: "$", EUR: "€", INR: "₹" };
+
+  const convertAmt = (amt: number) => amt * currencyRates[currency];
+  const formatAmt = (amt: number) => `${currencySymbols[currency]}${convertAmt(amt).toFixed(2)}`;
+
   // Settle Up state
   const [isSettleOpen, setIsSettleOpen] = useState(false);
   const [settlePayer, setSettlePayer] = useState("");
@@ -183,7 +191,23 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
   const myUid = userProfile?.uid || "";
   const myBalance = netBalances[myUid] || 0;
 
-  // Settle handler
+  // Settle handlers
+  const handleQuickSettle = async (payerId: string, payeeId: string, amount: number) => {
+    try {
+      const settlementData = {
+        groupId,
+        payerId,
+        payeeId,
+        amount,
+        createdAt: serverTimestamp(),
+      };
+      await addDoc(collection(db, "groups", groupId, "settlements"), settlementData);
+      alert(`Auto-settled ${formatAmt(amount)}!`);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `groups/${groupId}/settlements`);
+    }
+  };
+
   const handleOpenSettle = (fromId?: string, toId?: string, amount?: number) => {
     setSettleError(null);
     setSettlePayer(fromId || myUid);
@@ -403,14 +427,25 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
               <div>
                 <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Your Balance Here</span>
                 <span className={`text-base font-extrabold ${myBalance > 0 ? "text-emerald-600" : myBalance < 0 ? "text-rose-600" : "text-slate-500"}`}>
-                  {myBalance > 0 ? `+$${myBalance.toFixed(2)}` : myBalance < 0 ? `-$${Math.abs(myBalance).toFixed(2)}` : "$0.00"}
+                  {myBalance > 0 ? `+${formatAmt(myBalance)}` : myBalance < 0 ? `-${formatAmt(Math.abs(myBalance))}` : formatAmt(0)}
                 </span>
-              </div>
+            </div>
             </div>
 
-            <span className="text-xs text-slate-400 font-semibold italic">
-              {myBalance > 0 ? "You are owed cash" : myBalance < 0 ? "You owe group members" : "Perfectly cleared!"}
-            </span>
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-xs text-slate-400 font-semibold italic">
+                {myBalance > 0 ? "You are owed cash" : myBalance < 0 ? "You owe group members" : "Perfectly cleared!"}
+              </span>
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value as "USD" | "EUR" | "INR")}
+                className="bg-slate-50 border border-slate-200 text-xs font-bold text-slate-600 rounded-lg px-2 py-1 outline-none cursor-pointer"
+              >
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="INR">INR (₹)</option>
+              </select>
+            </div>
           </div>
 
           {/* Tab Navigation */}
@@ -529,7 +564,7 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
                             {/* Visual amount */}
                             <div className="text-right">
                               <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">Total</span>
-                              <span className="text-base font-extrabold text-slate-800">${exp.amount.toFixed(2)}</span>
+                              <span className="text-base font-extrabold text-slate-800">{formatAmt(exp.amount)}</span>
                             </div>
 
                             {/* What you stand relative to this bill */}
@@ -538,14 +573,14 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
                                 <>
                                   <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-600 block leading-tight">You lent</span>
                                   <span className="text-sm font-bold text-emerald-600">
-                                    +${(exp.amount - portionOwedByMe).toFixed(2)}
+                                    +{formatAmt(exp.amount - portionOwedByMe)}
                                   </span>
                                 </>
                               ) : portionOwedByMe > 0 ? (
                                 <>
                                   <span className="text-[10px] uppercase font-bold tracking-wider text-rose-500 block leading-tight">You owe</span>
                                   <span className="text-sm font-bold text-rose-500">
-                                    -${portionOwedByMe.toFixed(2)}
+                                    -{formatAmt(portionOwedByMe)}
                                   </span>
                                 </>
                               ) : (
@@ -598,7 +633,7 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
                                   <span className="text-slate-600 font-medium">
                                     {prof?.displayName || "Member"} {uId === myUid ? "(You)" : ""}
                                   </span>
-                                  <span className="font-bold text-slate-800">${(owedAmt as number).toFixed(2)}</span>
+                                  <span className="font-bold text-slate-800">{formatAmt(owedAmt as number)}</span>
                                 </div>
                               );
                             })}
@@ -642,7 +677,7 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
                               </div>
 
                               <div className="flex items-center gap-4">
-                                <span className="text-xs font-extrabold text-teal-700">${set.amount.toFixed(2)}</span>
+                                <span className="text-xs font-extrabold text-teal-700">{formatAmt(set.amount)}</span>
                                 <button
                                   onClick={() => handleDeleteSettlement(set.id)}
                                   className="text-slate-350 hover:text-red-500 hover:bg-white rounded-md p-1 border border-slate-100 transition-colors cursor-pointer"
@@ -700,7 +735,7 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
                             <div className="flex-1">
                               <div className="flex items-center justify-between">
                                 <h4 className="text-sm font-bold text-slate-800">{exp.description}</h4>
-                                <span className="text-sm font-extrabold text-slate-900">${exp.amount.toFixed(2)}</span>
+                                <span className="text-sm font-extrabold text-slate-900">{formatAmt(exp.amount)}</span>
                               </div>
                               <p className="text-[11px] text-slate-500 mt-0.5">
                                 <span className="font-semibold text-slate-700">{payerProfile?.displayName || "Someone"}</span> added an expense
@@ -722,7 +757,7 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
                             <div className="flex-1">
                               <div className="flex items-center justify-between">
                                 <h4 className="text-sm font-bold text-slate-800">Settled up</h4>
-                                <span className="text-sm font-extrabold text-violet-600">${set.amount.toFixed(2)}</span>
+                                <span className="text-sm font-extrabold text-violet-600">{formatAmt(set.amount)}</span>
                               </div>
                               <p className="text-[11px] text-slate-500 mt-0.5">
                                 <span className="font-semibold text-slate-700">{payer?.displayName || "Someone"}</span> paid <span className="font-semibold text-slate-700">{payee?.displayName || "Someone"}</span>
@@ -825,22 +860,36 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
                               {isImReceiving ? "You" : toUser?.displayName || "Member"}
                             </span>
                             <span className="text-[11px] font-extrabold text-slate-900 border-l border-slate-200 pl-2">
-                              ${debt.amount.toFixed(2)}
+                              {formatAmt(debt.amount)}
                             </span>
                           </div>
 
                           <div className="flex items-center gap-2">
                             {isImOwing && (
-                              <a
-                                href={`venmo://pay?charge=pay&txn=pay&amount=${debt.amount.toFixed(2)}&note=Splitwise%20Settlement`}
-                                className="rounded-lg bg-[#008CFF] hover:bg-[#007BE0] px-3 py-1.5 text-[10px] font-bold text-white transition-colors cursor-pointer"
-                              >
-                                Venmo
-                              </a>
+                              <>
+                                <a
+                                  href={`venmo://pay?charge=pay&txn=pay&amount=${(debt.amount * currencyRates["USD"]).toFixed(2)}&note=Splitwise%20Settlement`}
+                                  className="rounded-lg bg-[#008CFF] hover:bg-[#007BE0] px-3 py-1.5 text-[10px] font-bold text-white transition-colors cursor-pointer"
+                                >
+                                  Venmo
+                                </a>
+                                <a
+                                  href={`upi://pay?pa=${toUser?.email?.split('@')[0]}@upi&pn=${encodeURIComponent(toUser?.displayName || "Member")}&am=${(debt.amount * currencyRates["INR"]).toFixed(2)}&cu=INR`}
+                                  className="rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-[10px] font-bold text-white transition-colors cursor-pointer"
+                                >
+                                  UPI
+                                </a>
+                                <button
+                                  onClick={() => handleQuickSettle(debt.from, debt.to, debt.amount)}
+                                  className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-[10px] font-bold text-white transition-colors cursor-pointer"
+                                >
+                                  Auto Settle
+                                </button>
+                              </>
                             )}
                             {isImReceiving && fromUser?.email && (
                               <a
-                                href={`mailto:${fromUser.email}?subject=Reminder:%20Settle%20up%20on%20Splitwise&body=Hi%20${fromUser.displayName},%0A%0AJust%20a%20friendly%20reminder%20that%20you%20owe%20$${debt.amount.toFixed(2)}%20in%20the%20${encodeURIComponent(group.name)}%20group.%0A%0AThanks!`}
+                                href={`mailto:${fromUser.email}?subject=Reminder:%20Settle%20up%20on%20Splitwise&body=Hi%20${fromUser.displayName},%0A%0AJust%20a%20friendly%20reminder%20that%20you%20owe%20${formatAmt(debt.amount)}%20in%20the%20${encodeURIComponent(group.name)}%20group.%0A%0AThanks!`}
                                 className="rounded-lg bg-amber-500 hover:bg-amber-600 px-3 py-1.5 text-[10px] font-bold text-white transition-colors cursor-pointer"
                               >
                                 Remind
@@ -850,7 +899,7 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
                               onClick={() => handleOpenSettle(debt.from, debt.to, debt.amount)}
                               className="rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-[10px] font-bold text-white transition-colors cursor-pointer"
                             >
-                              Record cash settle
+                              Manual settle
                             </button>
                           </div>
                         </div>
@@ -958,6 +1007,43 @@ export const GroupDetail: React.FC<GroupDetailProps> = ({ groupId, onBack }) => 
 
         {/* RIGHT COLUMN: Static sidebar items / Real-time chat integration (4/12 width) */}
         <div id="side-chat-col" className="lg:col-span-4 space-y-6">
+          {/* Budget Analytics Sidebar Widget */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="h-4.5 w-4.5 text-blue-500" />
+              <h4 className="text-sm font-bold text-slate-800">Budget Analytics</h4>
+            </div>
+
+            {expenses.length === 0 ? (
+              <p className="text-[11px] text-slate-400 font-medium">No expenses logged yet to analyze.</p>
+            ) : (
+              <div className="space-y-3">
+                {Object.entries(
+                  expenses.reduce((acc, exp) => {
+                    const cat = exp.category || "Other";
+                    acc[cat] = (acc[cat] || 0) + exp.amount;
+                    return acc;
+                  }, {} as Record<string, number>)
+                )
+                  .sort(([, a], [, b]) => (b as number) - (a as number))
+                  .map(([cat, total]) => (
+                    <div key={cat}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="font-semibold text-slate-600">{cat}</span>
+                        <span className="font-bold text-slate-800">{formatAmt(total as number)}</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-500 rounded-full"
+                          style={{ width: `${Math.min(((total as number) / (expenses.reduce((s, e) => s + e.amount, 0) || 1)) * 100, 100)}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+
           {activeChatExpense ? (
             <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sticky top-24">
               <ExpenseChat
