@@ -148,6 +148,10 @@ export function getSimplifiedDebts(
     }
   }
 
+  // Sort descending to match largest debts first (smart matching heuristic)
+  debtors.sort((a, b) => b.absAmt - a.absAmt);
+  creditors.sort((a, b) => b.absAmt - a.absAmt);
+
   const simplifiedDebts: Debt[] = [];
 
   let dIdx = 0;
